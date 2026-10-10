@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Indian Stocks</title>
+<meta name="description" content="Glanceable NSE watchlist and charts for Meta Ray-Ban Display glasses.">
+<meta name="mrbd-web-app-capable" content="yes">
+<meta name="viewport" content="width=600, height=600, user-scalable=no">
+<style>
+  :root{--fg:#fff;--mut:#b4b9bf;--up:#38f08c;--dn:#ff5d5d;--acc:#ffb12b}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#000;color:var(--fg);overflow:hidden;
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-variant-numeric:tabular-nums;-webkit-user-select:none;user-select:none}
+  body{display:grid;place-items:center}
+  #app{width:600px;height:600px;padding:12px 20px 8px;display:flex;flex-direction:column;outline:1px solid #1c1c1c}
+  .up{color:var(--up)} .dn{color:var(--dn)} .mut{color:var(--mut)} .acc{color:var(--acc)}
+
+  .hd{display:flex;justify-content:space-between;align-items:center;height:46px;flex:none}
+  .ttl{font-size:30px;font-weight:800;letter-spacing:.3px;display:flex;align-items:center;gap:10px}
+  .chip{font-size:14px;font-weight:800;padding:1px 8px;border:2px solid currentColor;border-radius:10px;letter-spacing:.5px}
+  .idx{font-size:19px;font-weight:600;white-space:nowrap}
+  .idx b{font-weight:800}
+
+  .list{flex:1;display:flex;flex-direction:column;gap:2px;margin-top:4px;min-height:0}
+  .row{display:grid;grid-template-columns:1fr 112px 190px;align-items:center;height:74px;flex:none;
+    padding:0 14px;border-left:6px solid transparent;border-radius:6px}
+  .row.sel{background:#222;border-left-color:var(--acc)}
+  .sym{font-size:30px;font-weight:800}
+  .sub{font-size:20px;font-weight:700;margin-top:2px}
+  .px{font-size:30px;font-weight:700;text-align:right}
+  .x{font-size:34px;font-weight:800;color:var(--dn)}
+  .act{height:56px;display:flex;align-items:center;gap:12px;font-size:24px;font-weight:700;color:var(--mut);
+    padding:0 14px;border-left:6px solid transparent;border-radius:6px;flex:none}
+  .act.sel{background:#222;border-left-color:var(--acc);color:var(--fg)}
+  .empty{font-size:22px;color:var(--mut);padding:30px 14px}
+
+  .ft{flex:none;height:30px;text-align:center;font-size:18px;font-weight:600;color:var(--mut);padding-top:4px}
+
+  .dh{display:flex;justify-content:space-between;align-items:flex-end;height:96px;flex:none;padding-top:4px}
+  .back{font-size:22px;font-weight:700;color:var(--mut);margin-bottom:4px;display:block}
+  .dsym{font-size:40px;font-weight:800;line-height:1}
+  .dname{font-size:19px;color:var(--mut);margin-top:4px}
+  .dpx{font-size:42px;font-weight:800;text-align:right;line-height:1}
+  .dchg{font-size:22px;font-weight:700;text-align:right;margin-top:6px}
+  .chart{flex:none;height:258px;margin-top:4px}
+  .chart svg{display:block;width:560px;height:258px}
+  .msg{height:258px;display:grid;place-items:center;font-size:22px;color:var(--mut)}
+  .ro{flex:none;height:40px;display:flex;justify-content:space-between;align-items:center;font-size:22px;font-weight:700}
+  .tabs{flex:none;display:flex;gap:8px;height:50px;align-items:center}
+  .tab{flex:1;text-align:center;font-size:22px;font-weight:800;padding:6px 0;border-bottom:4px solid transparent;color:var(--mut)}
+  .tab.on{color:var(--fg);border-bottom-color:var(--acc)}
+
+  .grid{flex:1;display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:92px;gap:10px;margin-top:6px;align-content:start}
+  .cell{border:2px solid #333;border-radius:10px;padding:12px 12px;overflow:hidden}
+  .cell.sel{border-color:var(--acc);background:#222}
+  .cell .sym{font-size:23px}
+  .cell .nm{font-size:16px;color:var(--mut);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(() => {
+'use strict';
+
+/* ---------- Config ---------- */
+const SYMS = {
+  RELIANCE:['Reliance Industries',1400], TCS:['Tata Consultancy',3200], HDFCBANK:['HDFC Bank',950],
+  INFY:['Infosys',1500], ICICIBANK:['ICICI Bank',1400], SBIN:['State Bank of India',850],
+  BHARTIARTL:['Bharti Airtel',1900], ITC:['ITC',420], LT:['Larsen & Toubro',3600],
+  HCLTECH:['HCL Technologies',1500], WIPRO:['Wipro',250], AXISBANK:['Axis Bank',1100],
+  KOTAKBANK:['Kotak Mahindra Bank',2100], HINDUNILVR:['Hindustan Unilever',2400],
+  BAJFINANCE:['Bajaj Finance',1000], ADANIENT:['Adani Enterprises',2400], MARUTI:['Maruti Suzuki',15000],
+  SUNPHARMA:['Sun Pharma',1700], TITAN:['Titan Company',3600], ONGC:['ONGC',240],
+  NTPC:['NTPC',330], TATASTEEL:['Tata Steel',170]
+};
+const INDICES = { '^NSEI':['NIFTY 50',25000], '^BSESN':['SENSEX',82000], '^NSEBANK':['BANK NIFTY',55500] };
+const DEFAULT_WL = ['RELIANCE','TCS','HDFCBANK','INFY','ICICIBANK','SBIN'];
+const PERIODS = ['1D','5D','1M','6M','1Y'];
+const qs = new URLSearchParams(location.search);
+const API = qs.get('api') || '';          // optional: ?api=https://your-backend
+const FORCE_DEMO = qs.has('demo');
+// Optional shared secret (set APP_KEY on the server, then open the app once with ?key=...)
+const APP_KEY = (() => { const k = qs.get('key');
+  if (k){ try{ localStorage.setItem('appkey', k); }catch{} return k; }
+  try{ return localStorage.getItem('appkey') || ''; }catch{ return ''; } })();
+const authHdr = () => APP_KEY ? { 'x-app-key': APP_KEY } : {};         // ?demo forces simulated data
+
+/* ---------- Helpers ---------- */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} }
+};
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const nf = new Intl.NumberFormat('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money = v => '₹' + nf.format(v);
+const chg = q => { const d = q.price - q.prev, p = q.prev ? d / q.prev * 100 : 0; return { d, p, up: d >= 0 }; };
+const pct = (p, up) => `${up ? '▲' : '▼'} ${Math.abs(p).toFixed(2)}%`;
+const baseOf = s => (SYMS[s] && SYMS[s][1]) || (INDICES[s] && INDICES[s][1]) || 1000;
+const IST = 5.5 * 3600e3;
+
+function istNow(){ const s = new Date(Date.now() + IST); return { dow: s.getUTCDay(), min: s.getUTCHours()*60 + s.getUTCMinutes(),
+  mid: Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate()) }; }
+function marketOpen(){ const n = istNow(); return n.dow !== 0 && n.dow !== 6 && n.min >= 555 && n.min < 930; }
+const wk = d => { const w = new Date(d).getUTCDay(); return w !== 0 && w !== 6; };
+function sessionDays(count){            // epoch ms of 09:15 IST for the last `count` trading days, oldest first
+  const n = istNow(); let d = n.mid;
+  if (!wk(d) || n.min < 555) d -= 86400000;
+  while (!wk(d)) d -= 86400000;
+  const out = [];
+  while (out.length < count){ if (wk(d)) out.push(d - IST + 555*60000); d -= 86400000; }
+  return out.reverse();
+}
+function fmtT(t, P){
+  const o = { timeZone:'Asia/Kolkata' };
+  if (P === '1D') return new Date(t).toLocaleString('en-IN',{...o,hour:'numeric',minute:'2-digit',hour12:true});
+  if (P === '5D') return new Date(t).toLocaleString('en-IN',{...o,weekday:'short',hour:'numeric',minute:'2-digit',hour12:true});
+  return new Date(t).toLocaleDateString('en-IN',{...o,day:'numeric',month:'short',year:'2-digit'});
+}
+
+/* ---------- Demo data (used when no live backend is reachable) ---------- */
+function rng(str){ let h = 1779033703 ^ str.length; for (let i=0;i<str.length;i++){ h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = h<<13 | h>>>19; }
+  let a = h; return () => { a|=0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a>>>15, 1|a); t = t + Math.imul(t ^ t>>>7, 61|t) ^ t; return ((t ^ t>>>14)>>>0)/4294967296; }; }
+const gauss = r => { let u = 0; for (let i=0;i<6;i++) u += r(); return (u-3)/Math.sqrt(.5); };
+function walk(key, n, vol, end){ const r = rng(key), a = [1]; for (let i=1;i<n;i++) a.push(a[i-1]*(1+gauss(r)*vol)); const k = end/a[n-1]; return a.map(v => v*k); }
+function demoInit(s){ const b = baseOf(s), r = rng('d'+s+new Date().toDateString()), price = b*(1+(r()-.5)*.03);
+  return { price, prev:b, spark: walk('s'+s, 40, .0012, price) }; }
+function demoSeries(sym, P){
+  const q = S.q[sym], end = q ? q.price : baseOf(sym);
+  const days = { '1D':1,'5D':5,'1M':22,'6M':126,'1Y':250 }[P], ds = sessionDays(days), ts = [];
+  if (P === '1D') for (let i=0;i<75;i++) ts.push(ds[0] + i*300000);
+  else if (P === '5D') ds.forEach(d => { for (let i=0;i<25;i++) ts.push(d + i*900000); });
+  else ds.forEach(d => ts.push(d + 375*60000));
+  const vol = { '1D':.0007,'5D':.0009,'1M':.008,'6M':.011,'1Y':.012 }[P], c = walk(sym+P, ts.length, vol, end);
+  return { points: ts.map((t,i) => ({ t, c: c[i] })), prev: P === '1D' && q ? q.prev : null };
+}
+
+/* ---------- State ---------- */
+const S = {
+  view:'list', wl: store.get('wl', DEFAULT_WL).filter(s => SYMS[s]), sel:0, top:0, editing:false,
+  q:{}, mode:'load', liveAt:0, auth:false, roll:{}, idxI:0, p:{ i:0, top:0 }, d:{ sym:null, pi:0, cursor:null, series:null }
+};
+if (!S.wl.length) S.wl = [...DEFAULT_WL];
+const app = document.getElementById('app');
+const seriesCache = {};
+
+function ensureDemo(){ [...S.wl, ...Object.keys(INDICES)].forEach(s => { if (!S.q[s]) S.q[s] = demoInit(s); }); }
+function demoTick(){ for (const k in S.q){ const q = S.q[k]; q.price = +(q.price*(1+(Math.random()-.5)*.0012)).toFixed(2); q.spark = q.spark.slice(1).concat(q.price); } }
+
+/* ---------- Live data (served by /api on Vercel) ---------- */
+async function pollLive(){
+  try{
+    const syms = [...S.wl, ...Object.keys(INDICES)].join(',');
+    const r = await fetch(`${API}/api/quotes?symbols=${encodeURIComponent(syms)}`, { cache:'no-store', headers: authHdr() });
+    if (r.status === 401){                       // Kite session missing/expired, or wrong app key
+      const e = await r.json().catch(() => ({}));
+      S.auth = e.error === 'login_required' ? 'login' : 'key';
+      render(); return;
+    }
+    if (!r.ok) throw 0;
+    const j = await r.json(), got = Object.keys(j.quotes || {});
+    if (!got.length) throw 0;
+    if (S.mode !== 'live'){ S.q = {}; for (const k in seriesCache) delete seriesCache[k]; }
+    got.forEach(k => {
+      const q = S.q[k] = j.quotes[k], a = S.roll[k] = S.roll[k] || [];
+      a.push(q.price); if (a.length > 40) a.shift();
+      if (!q.spark || q.spark.length < 2) q.spark = a.slice();   // fall back to prices seen since opening the app
+    });
+    S.mode = 'live'; S.liveAt = Date.now(); S.auth = false;
+  }catch{
+    if (!S.liveAt){ S.mode = 'demo'; ensureDemo(); }
+  }
+  render();
+}
+async function loop(){
+  if (FORCE_DEMO){ S.mode = 'demo'; ensureDemo(); render(); return; }
+  await pollLive();
+  setTimeout(loop, S.auth ? 15000 : S.mode === 'live' ? (marketOpen() ? 5000 : 60000) : 30000);
+}
+async function getSeries(sym, P){
+  const key = sym + P, c = seriesCache[key];
+  if (c && Date.now() - c.at < 60000) return c.v;
+  let v = null;
+  if (S.mode === 'live'){
+    try{
+      const r = await fetch(`${API}/api/chart?symbol=${encodeURIComponent(sym)}&range=${P}`, { headers: authHdr() });
+      if (!r.ok) throw 0;
+      v = await r.json(); if (!v.points || !v.points.length) throw 0;
+    }catch{ v = { points:[], prev:null, err:true }; }
+  } else v = demoSeries(sym, P);
+  seriesCache[key] = { at: Date.now(), v };
+  return v;
+}
+
+/* ---------- Views ---------- */
+function chip(){
+  if (S.auth) return `<span class="chip acc">${S.auth === 'login' ? 'LOGIN' : 'KEY?'}</span>`;
+  let [t, c] = S.mode === 'live' ? (marketOpen() ? ['LIVE','up'] : ['CLOSED','mut']) : S.mode === 'demo' ? ['DEMO','acc'] : ['···','mut'];
+  if (S.mode === 'live' && marketOpen() && Date.now() - S.liveAt > 30000){ t = 'STALE'; c = 'acc'; }
+  return `<span class="chip ${c}">${t}</span>`;
+}
+function indexTicker(){
+  const k = Object.keys(INDICES)[S.idxI % 3], q = S.q[k]; if (!q) return '';
+  const c = chg(q);
+  return `<div class="idx">${INDICES[k][0]} <b>${nf.format(q.price)}</b> <span class="${c.up?'up':'dn'}">${c.up?'▲':'▼'}${Math.abs(c.p).toFixed(2)}%</span></div>`;
+}
+function spark(a, prev, w = 104, h = 36){
+  if (!a || a.length < 2) return '';
+  const lo = Math.min(...a), hi = Math.max(...a), s = (hi-lo) || 1;
+  const pts = a.map((v,i) => `${(i*w/(a.length-1)).toFixed(1)},${(h-2-(v-lo)*(h-4)/s).toFixed(1)}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${a[a.length-1] >= prev ? 'var(--up)' : 'var(--dn)'}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+function listView(){
+  const n = S.wl.length + 2, VIS = 6;
+  if (S.sel < S.top) S.top = S.sel;
+  if (S.sel > S.top + VIS - 1) S.top = S.sel - VIS + 1;
+  let rows = '';
+  for (let i = S.top; i < Math.min(n, S.top + VIS); i++){
+    const sel = i === S.sel ? ' sel' : '';
+    if (i < S.wl.length){
+      const s = S.wl[i], q = S.q[s];
+      if (!q){ rows += `<div class="row${sel}" data-i="${i}"><div class="sym">${s}</div><div></div><div class="px mut">—</div></div>`; continue; }
+      const c = chg(q), cl = c.up ? 'up' : 'dn';
+      rows += `<div class="row${sel}" data-i="${i}">
+        <div><div class="sym">${s}</div><div class="sub ${cl}">${pct(c.p, c.up)}</div></div>
+        <div>${spark(q.spark, q.prev)}</div>
+        <div>${S.editing ? '<div class="px x">✕</div>' : `<div class="px">${money(q.price)}</div>`}</div></div>`;
+    } else if (i === S.wl.length){
+      rows += `<div class="act${sel}" data-i="${i}"><span>＋</span>Add stock</div>`;
+    } else {
+      rows += `<div class="act${sel}" data-i="${i}"><span>✎</span>${S.editing ? 'Done editing' : 'Edit list'}</div>`;
+    }
+  }
+  const hint = S.auth === 'login' ? 'Open /api/kite/login on your phone' : S.auth === 'key' ? 'Add ?key=… to this page URL'
+    : S.editing ? '▲▼ select · ENTER remove · ◀ done' : '▲▼ select · ENTER open';
+  return `<div class="hd"><div class="ttl">Stocks ${chip()}</div>${indexTicker()}</div>
+    <div class="list">${rows}</div><div class="ft">${hint}</div>`;
+}
+
+function chartSVG(pts, prev, cursor, P){
+  const W = 560, H = 258, pad = 8, vals = pts.map(p => p.c);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const base = (P === '1D' && prev) ? prev : vals[0];
+  lo = Math.min(lo, base); hi = Math.max(hi, base);
+  const span = (hi-lo) || 1; lo -= span*.08; hi += span*.08;
+  const x = i => pad + i*(W-2*pad)/((pts.length-1) || 1), y = v => pad + (hi-v)*(H-2*pad)/(hi-lo);
+  const col = vals[vals.length-1] >= base ? 'var(--up)' : 'var(--dn)';
+  const line = pts.map((p,i) => `${i?'L':'M'}${x(i).toFixed(1)},${y(p.c).toFixed(1)}`).join('');
+  const area = `${line}L${x(pts.length-1).toFixed(1)},${H}L${x(0).toFixed(1)},${H}Z`;
+  let cur = '';
+  if (cursor != null){ const cx = x(cursor).toFixed(1), cy = y(pts[cursor].c).toFixed(1);
+    cur = `<line x1="${cx}" y1="0" x2="${cx}" y2="${H}" stroke="#fff" stroke-width="2" stroke-dasharray="4 4"/><circle cx="${cx}" cy="${cy}" r="7" fill="#fff" stroke="#000" stroke-width="2"/>`; }
+  return `<svg viewBox="0 0 ${W} ${H}"><path d="${area}" fill="${col}" fill-opacity=".14"/>
+    <line x1="0" y1="${y(base).toFixed(1)}" x2="${W}" y2="${y(base).toFixed(1)}" stroke="#666" stroke-width="2" stroke-dasharray="3 7"/>
+    <path d="${line}" fill="none" stroke="${col}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>${cur}</svg>`;
+}
+
+function detailView(){
+  const d = S.d, q = S.q[d.sym], P = PERIODS[d.pi], m = SYMS[d.sym];
+  const c = q ? chg(q) : null;
+  let body = '<div class="msg">Loading chart…</div>', ro = '<div></div>';
+  const ser = d.series;
+  if (ser){
+    if (ser.err || !ser.points.length) body = '<div class="msg">Chart unavailable right now</div>';
+    else {
+      const pts = ser.points.map(p => ({ ...p }));
+      if (q) pts[pts.length-1].c = q.price;
+      const base = (P === '1D' && ser.prev) ? ser.prev : pts[0].c;
+      const k = d.cursor == null ? pts.length-1 : d.cursor, p = pts[k], diff = (p.c-base)/base*100, up = diff >= 0;
+      body = `<div class="chart">${chartSVG(pts, ser.prev, d.cursor, P)}</div>`;
+      ro = d.cursor == null
+        ? `<span class="mut">${P} change</span><span class="${up?'up':'dn'}">${pct(diff, up)}</span>`
+        : `<span class="mut">${fmtT(p.t, P)}</span><span>${money(p.c)} <span class="${up?'up':'dn'}">${pct(diff, up)}</span></span>`;
+    }
+  }
+  const tabs = PERIODS.map((t,i) => `<div class="tab${i===d.pi?' on':''}" data-p="${i}">${t}</div>`).join('');
+  return `<div class="dh">
+      <div><span class="back" data-back>← Back</span><div class="dsym">${d.sym}</div><div class="dname">${esc(m[0])}</div></div>
+      <div>${q ? `<div class="dpx">${money(q.price)}</div><div class="dchg ${c.up?'up':'dn'}">${c.up?'+':'−'}${nf.format(Math.abs(c.d))} ${pct(c.p, c.up)}</div>` : '<div class="dpx mut">—</div>'}</div>
+    </div>${body}<div class="ro">${ro}</div><div class="tabs">${tabs}</div>
+    <div class="ft">↑ next stock · ↓ period · ◀▶ scrub</div>`;
+}
+
+const avail = () => Object.keys(SYMS).filter(s => !S.wl.includes(s));
+function addView(){
+  const a = avail(), p = S.p, r = Math.floor(p.i/3);
+  if (r < p.top) p.top = r; if (r > p.top + 3) p.top = r - 3;
+  let cells = '';
+  for (let i = p.top*3; i < Math.min(a.length, (p.top+4)*3); i++)
+    cells += `<div class="cell${i===p.i?' sel':''}" data-i="${i}"><div class="sym">${a[i]}</div><div class="nm">${esc(SYMS[a[i]][0])}</div></div>`;
+  return `<div class="hd"><div class="ttl">Add stock</div><div class="idx mut">${a.length ? (p.i+1)+' of '+a.length : ''}</div></div>
+    ${a.length ? `<div class="grid">${cells}</div>` : '<div class="empty">Every available stock is already on your list.</div>'}
+    <div class="ft">▲▼◀▶ move · ENTER add · BACK cancel</div>`;
+}
+
+function render(){ app.innerHTML = S.view === 'list' ? listView() : S.view === 'detail' ? detailView() : addView(); }
+
+/* ---------- Input (Neural Band maps to arrows + Enter + Back) ---------- */
+async function loadSeries(){
+  const { sym, pi } = S.d; S.d.series = null; S.d.cursor = null;
+  const v = await getSeries(sym, PERIODS[pi]);
+  if (S.view === 'detail' && S.d.sym === sym && S.d.pi === pi){ S.d.series = v; render(); }
+}
+function refreshSoon(){ if (S.mode === 'live') pollLive(); else ensureDemo(); }
+
+function listKey(k){
+  const n = S.wl.length + 2;
+  if (k === 'down') S.sel = Math.min(n-1, S.sel+1);
+  else if (k === 'up') S.sel = Math.max(0, S.sel-1);
+  else if (k === 'left' || k === 'back'){ S.editing = false; }
+  else if (k === 'enter'){
+    if (S.sel < S.wl.length){
+      if (S.editing){ S.wl.splice(S.sel, 1); store.set('wl', S.wl); S.sel = Math.min(S.sel, S.wl.length+1); }
+      else { S.view = 'detail'; S.d = { sym:S.wl[S.sel], pi:0, cursor:null, series:null }; loadSeries(); }
+    } else if (S.sel === S.wl.length){ S.view = 'add'; S.p = { i:0, top:0 }; S.editing = false; }
+    else S.editing = !S.editing;
+  }
+}
+function detailKey(k){
+  const d = S.d;
+  if (k === 'back'){ S.view = 'list'; return; }
+  if (k === 'down'){ d.pi = (d.pi+1) % PERIODS.length; loadSeries(); return; }
+  if (k === 'up'){ d.sym = S.wl[(S.wl.indexOf(d.sym)+1) % S.wl.length]; loadSeries(); return; }
+  if (k === 'enter'){ d.cursor = null; return; }
+  const n = d.series && d.series.points ? d.series.points.length : 0;
+  if (n && (k === 'left' || k === 'right')){
+    const step = Math.max(1, Math.round(n/50)), cur = d.cursor == null ? n-1 : d.cursor;
+    d.cursor = Math.max(0, Math.min(n-1, cur + (k === 'left' ? -step : step)));
+  }
+}
+function addKey(k){
+  const a = avail(), n = a.length, p = S.p;
+  if (k === 'back' || !n){ S.view = 'list'; return; }
+  if (k === 'right') p.i = Math.min(n-1, p.i+1);
+  else if (k === 'left'){ if (p.i % 3 === 0){ S.view = 'list'; return; } p.i--; }
+  else if (k === 'down') p.i = Math.min(n-1, p.i+3);
+  else if (k === 'up') p.i = Math.max(0, p.i-3);
+  else if (k === 'enter'){ S.wl.push(a[p.i]); store.set('wl', S.wl); S.sel = S.wl.length-1; S.view = 'list'; refreshSoon(); }
+}
+function press(k){ (S.view === 'list' ? listKey : S.view === 'detail' ? detailKey : addKey)(k); render(); }
+
+const KEYS = { ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right', Enter:'enter', ' ':'enter', Escape:'back', Backspace:'back' };
+addEventListener('keydown', e => { const k = KEYS[e.key]; if (k){ e.preventDefault(); press(k); } });
+app.addEventListener('click', e => {
+  const t = e.target.closest('[data-i],[data-p],[data-back]'); if (!t) return;
+  if (t.dataset.back !== undefined) return press('back');
+  if (t.dataset.p !== undefined){ S.d.pi = +t.dataset.p; loadSeries(); return render(); }
+  if (S.view === 'list') S.sel = +t.dataset.i; else if (S.view === 'add') S.p.i = +t.dataset.i;
+  press('enter');
+});
+
+/* ---------- Boot ---------- */
+setInterval(() => { S.idxI++; render(); }, 4000);
+setInterval(() => { if (S.mode === 'demo'){ demoTick(); render(); } }, 2000);
+render();
+loop();
+})();
+</script>
+</body>
+</html>
